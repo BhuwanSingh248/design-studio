@@ -72,8 +72,8 @@ class LLMClient:
         response_content = response.choices[0].message.content
         if not response_content:
             raise ValueError("Empty response from LLM")
-        response_content = response_content.strip()
 
+        response_content = self._normalize_json_str(response_content.strip())
         parsed = schema.model_validate_json(response_content)
         return parsed
 
@@ -88,3 +88,18 @@ class LLMClient:
                 if e.status_code not in retryable_status_codes or attempt == max_retries:
                     raise_llm_exception(e)     
                 await asyncio.sleep(backoff_factor * (2 ** (attempt - 1)))
+
+    @staticmethod
+    def _normalize_json_str(json_str: str) -> str:
+        json_str = json_str.strip()
+
+        if json_str.startswith("```json"):
+            json_str = json_str[len("```json"):]
+            if json_str.endswith("```"):
+                json_str = json_str[:-len("```")]
+        elif json_str.startswith("```"):
+            json_str = json_str[3:]
+            if json_str.endswith("```"):
+                json_str = json_str[:-3]
+
+        return json_str.strip()

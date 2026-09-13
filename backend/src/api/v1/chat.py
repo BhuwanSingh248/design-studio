@@ -15,17 +15,13 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    reply: str
-    tokens_used: int = 0
+    reply:DesignReview
 
 
 @router.post("", response_model=ChatResponse)
 async def chat_endpoint(payload: ChatRequest):
     llm_client = LLMClient(settings=llm_settings)
     response = await llm_client.chat_structured(payload.message, DesignReview)
-    reply_text = response.choices[0].message.content if hasattr(response, "choices") else str(response)
-    tokens = response.usage.total_tokens if hasattr(response, "usage") and response.usage else 0
     return ChatResponse(
-        reply=reply_text,
-        tokens_used=tokens,
+        reply=response,
     )

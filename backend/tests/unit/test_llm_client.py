@@ -1,12 +1,22 @@
-"""Unit tests for LLMClient abstraction and retry mechanisms."""
+"""Unit tests for LLMClient abstraction, retry mechanisms, and structured output."""
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
+from pydantic import BaseModel, ValidationError
 from groq import APIStatusError
 from src.core.config import LLMSettings
+from src.core.exception import (
+    LLMAuthenticationError,
+    LLMConfigurationError,
+    LLMException,
+    LLMRateLimitError,
+    LLMServiceError,
+    LLMTimeoutError,
+)
 from src.llm.client import LLMClient
 from src.llm.cost_tracker import CostTracker
+from src.llm.schemas import DesignIssue, DesignReview
 
 
 def make_api_status_error(status_code: int, message: str = "API Error") -> APIStatusError:
@@ -35,6 +45,10 @@ def mock_cost_tracker():
     return CostTracker(pricing=pricing)
 
 
+# ---------------------------------------------------------------------------
+# Retry Logic Tests
+# ---------------------------------------------------------------------------
+
 def test_execute_with_retries_immediate_success(mock_settings):
     """Verify that a successful function call returns immediately on attempt 1."""
     client = LLMClient(settings=mock_settings)
@@ -48,9 +62,9 @@ def test_execute_with_retries_immediate_success(mock_settings):
         mock_sleep.assert_not_called()
 
 
-@pytest.mark.parametrize("status_code", [429, 500, 503, 504])
+@pytest.mark.parametrize("status_code", [429, 500, 502, 503, 504])
 def test_execute_with_retries_transient_status_codes_retry_and_succeed(mock_settings, status_code):
-    """Verify that retryable HTTP status codes (429, 500, 503, 504) are retried."""
+    """Verify that retryable HTTP status codes (429, 500, 502, 503, 504) are retried."""
     client = LLMClient(settings=mock_settings)
     error = make_api_status_error(status_code)
     mock_func = AsyncMock(side_effect=[error, "recovered_data"])
@@ -87,37 +101,47 @@ def test_execute_with_retries_exponential_backoff_progression(mock_settings):
 
 
 def test_execute_with_retries_exhaustion_raises(mock_settings):
-    """Verify that when max_retries is reached, the final APIStatusError is raised."""
+    """Verify that when max_retries is reached, the mapped LLMException is raised."""
     client = LLMClient(settings=mock_settings)
     err503 = make_api_status_error(503, message="Service Unavailable")
     mock_func = AsyncMock(side_effect=err503)
 
     with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-        with pytest.raises(APIStatusError) as exc_info:
+        with pytest.raises(LLMServiceError):
             asyncio.run(
                 client._execute_with_retries(mock_func, max_retries=3, backoff_factor=0.1)
             )
 
-        assert exc_info.value.status_code == 503
         assert mock_func.await_count == 3
         # 3 attempts means 2 sleeps before the final failure
         assert mock_sleep.await_count == 2
 
 
-@pytest.mark.parametrize("non_retryable_code", [400, 401, 403, 404, 422])
-def test_execute_with_retries_non_retryable_status_codes_fail_immediately(mock_settings, non_retryable_code):
-    """Verify non-retryable errors (e.g. 401 Unauthorized, 400 Bad Request) fail immediately."""
+@pytest.mark.parametrize(
+    "status_code,expected_exception",
+    [
+        (400, LLMConfigurationError),
+        (401, LLMAuthenticationError),
+        (403, LLMAuthenticationError),
+        (404, LLMServiceError),
+        (408, LLMTimeoutError),
+        (422, LLMServiceError),
+    ],
+)
+def test_execute_with_retries_non_retryable_status_codes_fail_immediately(
+    mock_settings, status_code, expected_exception
+):
+    """Verify non-retryable errors fail immediately without retry and raise mapped exceptions."""
     client = LLMClient(settings=mock_settings)
-    error = make_api_status_error(non_retryable_code)
+    error = make_api_status_error(status_code)
     mock_func = AsyncMock(side_effect=error)
 
     with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-        with pytest.raises(APIStatusError) as exc_info:
+        with pytest.raises(expected_exception):
             asyncio.run(
                 client._execute_with_retries(mock_func, max_retries=3)
             )
 
-        assert exc_info.value.status_code == non_retryable_code
         # Should not retry at all
         assert mock_func.await_count == 1
         mock_sleep.assert_not_called()
@@ -138,6 +162,10 @@ def test_execute_with_retries_non_api_exception_fails_immediately(mock_settings)
         mock_sleep.assert_not_called()
 
 
+# ---------------------------------------------------------------------------
+# Chat and Cost Tracking Tests
+# ---------------------------------------------------------------------------
+
 def test_chat_method_retries_and_tracks_cost(mock_settings, mock_cost_tracker):
     """Verify chat() leverages retry loop and records cost upon success."""
     client = LLMClient(
@@ -147,6 +175,7 @@ def test_chat_method_retries_and_tracks_cost(mock_settings, mock_cost_tracker):
     )
 
     fake_response = MagicMock()
+    fake_response.model = "mock-model"
     fake_response.usage.prompt_tokens = 50
     fake_response.usage.completion_tokens = 100
     fake_response.choices = [MagicMock(message=MagicMock(content="Hello world"))]
@@ -172,37 +201,175 @@ def test_chat_method_retries_and_tracks_cost(mock_settings, mock_cost_tracker):
 
 
 def test_chat_method_unrecoverable_error_raises(mock_settings):
-    """Verify chat() propagates non-retryable errors directly."""
+    """Verify chat() propagates non-retryable mapped errors directly."""
     client = LLMClient(settings=mock_settings)
     error_401 = make_api_status_error(401, message="Invalid API Key")
     client._client.chat.completions.create = AsyncMock(side_effect=error_401)
 
     with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-        with pytest.raises(APIStatusError) as exc_info:
+        with pytest.raises(LLMAuthenticationError):
             asyncio.run(
                 client.chat(messages=[{"role": "user", "content": "Hi"}])
             )
 
-        assert exc_info.value.status_code == 401
         assert client._client.chat.completions.create.await_count == 1
         mock_sleep.assert_not_called()
 
 
 def test_chat_without_cost_tracker(mock_settings):
+    """Verify chat() operates cleanly when no cost_tracker is supplied."""
     client = LLMClient(settings=mock_settings)
 
     fake_response = MagicMock()
+    fake_response.model = "mock-model"
     fake_response.usage.prompt_tokens = 10
     fake_response.usage.completion_tokens = 20
 
-    client._client.chat.completions.create = AsyncMock(
-        return_value=fake_response
-    )
+    client._client.chat.completions.create = AsyncMock(return_value=fake_response)
 
     response = asyncio.run(
-        client.chat(
-            messages=[{"role": "user", "content": "Hi"}]
-        )
+        client.chat(messages=[{"role": "user", "content": "Hi"}])
     )
 
     assert response == fake_response
+    assert client.calculate_session_cost("session-1") is None
+
+
+# ---------------------------------------------------------------------------
+# Structured Output Tests
+# ---------------------------------------------------------------------------
+
+class DummySchema(BaseModel):
+    name: str
+    count: int
+
+
+def test_chat_structured_success_plain_json(mock_settings):
+    """Verify chat_structured parses valid plain JSON into target schema."""
+    client = LLMClient(settings=mock_settings)
+
+    fake_response = MagicMock()
+    fake_response.model = "mock-model"
+    fake_response.usage.prompt_tokens = 10
+    fake_response.usage.completion_tokens = 20
+    fake_response.choices = [MagicMock(message=MagicMock(content='{"name": "diagram", "count": 3}'))]
+
+    client._client.chat.completions.create = AsyncMock(return_value=fake_response)
+
+    result = asyncio.run(client.chat_structured("Generate dummy", DummySchema))
+
+    assert isinstance(result, DummySchema)
+    assert result.name == "diagram"
+    assert result.count == 3
+
+
+@pytest.mark.parametrize(
+    "raw_content",
+    [
+        '```json\n{"name": "fenced_json", "count": 7}\n```',
+        '```\n{"name": "fenced_json", "count": 7}\n```',
+        '   ```json\n{"name": "fenced_json", "count": 7}\n```   ',
+    ],
+)
+def test_chat_structured_normalizes_markdown_code_blocks(mock_settings, raw_content):
+    """Verify chat_structured strips markdown code fences before validating JSON."""
+    client = LLMClient(settings=mock_settings)
+
+    fake_response = MagicMock()
+    fake_response.model = "mock-model"
+    fake_response.usage.prompt_tokens = 10
+    fake_response.usage.completion_tokens = 20
+    fake_response.choices = [MagicMock(message=MagicMock(content=raw_content))]
+
+    client._client.chat.completions.create = AsyncMock(return_value=fake_response)
+
+    result = asyncio.run(client.chat_structured("Generate dummy", DummySchema))
+
+    assert isinstance(result, DummySchema)
+    assert result.name == "fenced_json"
+    assert result.count == 7
+
+
+def test_chat_structured_with_design_review_schema(mock_settings):
+    """Verify chat_structured correctly parses the DesignReview domain schema."""
+    client = LLMClient(settings=mock_settings)
+
+    json_payload = """
+    {
+        "summary": "Overall good design with minor coupling",
+        "issues": [
+            {
+                "severity": "medium",
+                "category": "coupling",
+                "description": "User class directly references DatabaseConnection"
+            }
+        ]
+    }
+    """
+    fake_response = MagicMock()
+    fake_response.model = "mock-model"
+    fake_response.usage.prompt_tokens = 25
+    fake_response.usage.completion_tokens = 40
+    fake_response.choices = [MagicMock(message=MagicMock(content=json_payload))]
+
+    client._client.chat.completions.create = AsyncMock(return_value=fake_response)
+
+    result = asyncio.run(client.chat_structured("Review design", DesignReview))
+
+    assert isinstance(result, DesignReview)
+    assert result.summary == "Overall good design with minor coupling"
+    assert len(result.issues) == 1
+    assert result.issues[0].severity == "medium"
+    assert result.issues[0].category == "coupling"
+
+
+def test_chat_structured_empty_response_raises_value_error(mock_settings):
+    """Verify chat_structured raises ValueError when response content is empty."""
+    client = LLMClient(settings=mock_settings)
+
+    fake_response = MagicMock()
+    fake_response.model = "mock-model"
+    fake_response.usage.prompt_tokens = 5
+    fake_response.usage.completion_tokens = 0
+    fake_response.choices = [MagicMock(message=MagicMock(content=""))]
+
+    client._client.chat.completions.create = AsyncMock(return_value=fake_response)
+
+    with pytest.raises(ValueError, match="Empty response from LLM"):
+        asyncio.run(client.chat_structured("Prompt", DummySchema))
+
+
+def test_chat_structured_invalid_json_raises_validation_error(mock_settings):
+    """Verify chat_structured raises ValidationError on invalid JSON schema payload."""
+    client = LLMClient(settings=mock_settings)
+
+    fake_response = MagicMock()
+    fake_response.model = "mock-model"
+    fake_response.usage.prompt_tokens = 10
+    fake_response.usage.completion_tokens = 10
+    # Missing required 'count' field
+    fake_response.choices = [MagicMock(message=MagicMock(content='{"name": "broken"}'))]
+
+    client._client.chat.completions.create = AsyncMock(return_value=fake_response)
+
+    with pytest.raises(ValidationError):
+        asyncio.run(client.chat_structured("Prompt", DummySchema))
+
+
+# ---------------------------------------------------------------------------
+# Normalization Helper Tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "raw_input,expected",
+    [
+        ('{"a": 1}', '{"a": 1}'),
+        ('```json{"a": 1}```', '{"a": 1}'),
+        ('```{"a": 1}```', '{"a": 1}'),
+        ('\n```json\n{"a": 1}\n```\n', '{"a": 1}'),
+        ('   {"a": 1}   ', '{"a": 1}'),
+    ],
+)
+def test_normalize_json_str(raw_input, expected):
+    """Verify _normalize_json_str handles various code fence formatting."""
+    assert LLMClient._normalize_json_str(raw_input) == expected

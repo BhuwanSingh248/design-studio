@@ -26,22 +26,19 @@ app.include_router(api_v1_router)
 
 @app.get("/healthz", tags=["Health"])
 async def health_check():
-    return {"status": "healthy", "service": "ai-design-studio"}
-
-
-@app.get("/test-llm", tags=["LLM"])
-async def test_llm():
     llm_client = LLMClient(settings=llm_settings, cost_tracker=None)
-    response = await llm_client.chat(
+    llm_response = await llm_client.chat(
         messages=[
             {
                 "role": "user",
-                "content": "Explain what an interface is in one sentence.",
+                "content": "health check endpoint system and llm up only 10 words but funny",
             }
         ]
     )
-    print("LLM Response:", response)
-    return {"response": response}
+    response = "service is up and running llm is down"
+    if llm_response:
+        response = llm_response.choices[0].message.content
+    return {"status": "healthy", "service": "ai-design-studio", "response":response}
 
 
 if __name__ == "__main__":
