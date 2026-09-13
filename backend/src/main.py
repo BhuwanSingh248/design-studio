@@ -1,6 +1,7 @@
 """Main FastAPI application entrypoint."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from src.api.v1 import api_v1_router
 from src.core.config import llm_settings
 from src.llm.client import LLMClient
 
@@ -19,6 +20,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Register API v1 routes
+app.include_router(api_v1_router)
+
 
 @app.get("/healthz", tags=["Health"])
 async def health_check():
@@ -36,7 +40,6 @@ async def test_llm():
             }
         ]
     )
-    content = response.choices[0].message.content if hasattr(response, "choices") else str(response)
     print("LLM Response:", response)
     return {"response": response}
 
