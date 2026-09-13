@@ -18,18 +18,15 @@ class LLMClient:
 
 
     async def chat(self, messages: list[dict[str,str]], temperature: float = 0.7, stream: bool = False):
-        try:
-            response = await self._execute_with_retries(
-                self._client.chat.completions.create,
-                model=self.settings.model,
-                messages=messages,
-                temperature=temperature,
-                stream=stream,
-            )
-            self.track_cost(response)
-            return response
-        except Exception as e:
-            raise
+        response = await self._execute_with_retries(
+            self._client.chat.completions.create,
+            model=self.settings.model,
+            messages=messages,
+            temperature=temperature,
+            stream=stream,
+        )
+        self.track_cost(response)
+        return response
     
     def track_cost(self, response):
         if not self.cost_tracker or not self._session_id:
@@ -37,7 +34,7 @@ class LLMClient:
         input_tokens = response.usage.prompt_tokens
         output_tokens = response.usage.completion_tokens
         cost = self.cost_tracker.calculate_cost(
-            self.settings.model,
+            response.model,
             input_tokens,
             output_tokens,
         )
@@ -45,7 +42,7 @@ class LLMClient:
         return cost
 
     def calculate_session_cost(self, session_id:str):
-        if self.cost_tracker and self._session_id:
+        if self.cost_tracker:
             return self.cost_tracker.get_session_total(session_id)
         return None
 
