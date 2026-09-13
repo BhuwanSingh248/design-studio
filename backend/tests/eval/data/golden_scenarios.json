@@ -1,0 +1,8 @@
+[
+  {
+    "scenario_id": "ecommerce_01",
+    "prompt": "Design an e-commerce class diagram with User, Order, Product, and Payment",
+    "expected_classes": ["User", "Order", "Product", "Payment"],
+    "expected_relationships": 3
+  }
+]
