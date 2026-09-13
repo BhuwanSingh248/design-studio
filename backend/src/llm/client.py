@@ -48,7 +48,36 @@ class LLMClient:
 
     async def chat_structured(self, prompt: str, schema: Type[T]) -> T:
         """Execute chat completion enforcing structured Pydantic schema."""
-        raise NotImplementedError("chat_structured to be implemented in Phase 2")
+
+        print(f"[ChatStructured] Structuring response for schema: {schema.__name__}")
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are an expert JSON generator. "
+                    "Respond with ONLY a valid JSON object that strictly matches the requested schema. "
+                    "Do not include markdown code blocks, explanations, or any other text."
+                    f" Schema: {schema.model_json_schema()}"
+                )
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ]
+
+        response = await self.chat(messages, temperature=0.7, stream=False)
+
+        response_content = response.choices[0].message.content
+        if not response_content:
+            raise ValueError("Empty response from LLM")
+        response_content = response_content.strip()
+
+        parsed = schema.model_validate_json(response_content)
+        return parsed
+
+
 
     async def _execute_with_retries(self, func,  *args,  max_retries:int=3,  backoff_factor: float = 0.25,  **kwargs):
         retryable_status_codes = (429, 500, 502, 503, 504)
