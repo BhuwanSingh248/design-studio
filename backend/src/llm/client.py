@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from src.core.config import LLMSettings, llm_settings
 from src.llm.cost_tracker import CostTracker
 from groq import AsyncGroq, APIStatusError
+from src.tools.raise_exception import raise_llm_exception
 import asyncio
 T = TypeVar("T", bound=BaseModel)
 
@@ -53,10 +54,11 @@ class LLMClient:
         raise NotImplementedError("chat_structured to be implemented in Phase 2")
 
     async def _execute_with_retries(self, func,  *args,  max_retries:int=3,  backoff_factor: float = 0.25,  **kwargs):
+        retryable_status_codes = (429, 500, 502, 503, 504)
         for attempt in range(1, max_retries +1):
             try:
                 return await func(*args, **kwargs)
             except APIStatusError as e:        
-                if e.status_code not in [429, 500, 503, 504] or attempt == max_retries:
-                    raise                
+                if e.status_code not in retryable_status_codes or attempt == max_retries:
+                    raise_llm_exception(e)     
                 await asyncio.sleep(backoff_factor * (2 ** (attempt - 1)))
