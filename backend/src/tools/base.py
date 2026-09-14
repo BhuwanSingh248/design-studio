@@ -19,9 +19,16 @@ class ToolResult:
 
 
 class BaseTool(ABC):
+    """
+        Contract for an executable application tool.
+
+        Tools receive validated parameters and execution context,
+        perform an application operation, and return a standardized
+        ToolResult.
+    """
     name: str
     description: str
-    parameters_schema: type[BaseModel]
+    input_schema: type[BaseModel]
 
     @abstractmethod
     async def execute(self, params: BaseModel, context: ToolContext) -> ToolResult:
