@@ -1,6 +1,9 @@
 """Unit tests for canvas manipulation tools."""
 import asyncio
 import pytest
+from src.domain.models.canvas import CanvasState
+from src.domain.repositoriers.canvas_repository import CanvasRepository
+from src.domain.services.canvas_service import CanvasService
 from src.tools.base import ToolContext
 from src.tools.canvas import (
     AddAttributeTool,
@@ -33,8 +36,29 @@ def tool_context():
     return ToolContext(workspace_id="ws-1", canvas_id="canvas-1")
 
 
-def test_create_class_tool(tool_context):
-    tool = CreateClassTool()
+@pytest.fixture
+def canvas_service():
+    return CanvasService()
+
+
+@pytest.fixture
+def canvas_repository(tool_context):
+    repo = CanvasRepository()
+    canvas = CanvasState()
+    asyncio.run(repo.save(tool_context.canvas_id, canvas))
+    return repo
+
+
+@pytest.fixture
+def create_class_tool(canvas_service, canvas_repository):
+    return CreateClassTool(
+        canvas_service=canvas_service,
+        canvas_repository=canvas_repository,
+    )
+
+
+def test_create_class_tool(tool_context, create_class_tool):
+    tool = create_class_tool
     params = CreateClassInput(name="Order")
     result = asyncio.run(tool.execute(params, tool_context))
     assert result.success is True
@@ -121,9 +145,9 @@ def test_remove_relationship_tool(tool_context):
     assert result.data["source_id"] == "class-1"
 
 
-def test_tool_registry_registration_and_schemas():
+def test_tool_registry_registration_and_schemas(create_class_tool):
     registry = ToolRegistry()
-    tool = CreateClassTool()
+    tool = create_class_tool
     registry.register_tool(tool)
 
     assert registry.get_tool("create_class") is tool
@@ -138,9 +162,9 @@ def test_tool_registry_registration_and_schemas():
     assert "properties" in schemas["tools"][0]["input_schema"]
 
 
-def test_tool_registry_dispatch(tool_context):
+def test_tool_registry_dispatch(tool_context, create_class_tool):
     registry = ToolRegistry()
-    registry.register_tool(CreateClassTool())
+    registry.register_tool(create_class_tool)
 
     # Valid dispatch
     result = asyncio.run(
