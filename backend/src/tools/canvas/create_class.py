@@ -1,7 +1,7 @@
 from src.tools.base import BaseTool, ToolContext, ToolResult
 from src.tools.schemas import CreateClassInput
 from src.domain.services.canvas_service import CanvasService
-from src.domain.repositoriers.canvas_repository import CanvasRepository
+from src.domain.repositories.canvas_repository import CanvasRepository
 
 
 class CreateClassTool(BaseTool):

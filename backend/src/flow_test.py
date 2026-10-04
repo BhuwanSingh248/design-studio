@@ -1,6 +1,6 @@
 
 from src.domain.models.canvas import CanvasState
-from src.domain.repositoriers.canvas_repository import CanvasRepository
+from src.domain.repositories.canvas_repository import CanvasRepository
 from src.domain.services.canvas_service import CanvasService
 from src.tools.base import ToolContext
 from src.tools.canvas.create_class import CreateClassTool

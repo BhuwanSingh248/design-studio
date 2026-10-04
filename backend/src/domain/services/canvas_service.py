@@ -36,7 +36,7 @@ class CanvasService:
             relationship 
             for relationship in canvas.relationships
             if (
-                relationship.source_id == class_id and relationship.target_id == class_id
+                relationship.source_id != class_id and relationship.target_id != class_id
             ) 
         ]
 
