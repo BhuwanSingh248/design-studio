@@ -23,6 +23,7 @@ class CreateClassTool(BaseTool):
 
         # call canvas_service.create_class(...)
         created_class = self.canvas_service.create_class(canvas, params.name)
+        await self.canvas_repository.save(context.canvas_id, canvas)
         
         # convert returned ClassDefinition into ToolResult
         return ToolResult(
