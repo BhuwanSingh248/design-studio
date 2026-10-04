@@ -2,9 +2,6 @@ from uuid import uuid4
 from src.domain.models.canvas import CanvasState, ClassDefinition
 
 class CanvasService:
-    def __init__(self):
-        self.class_map: dict[str, ClassDefinition] = {}
-
 
     def create_class(self, canvas: CanvasState, name:str) -> ClassDefinition:
         if any(existing.name == name for existing in canvas.classes):
