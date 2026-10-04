@@ -1,4 +1,5 @@
 """Tool registry for declaring and dispatching LLM tools."""
+
 from src.tools.base import BaseTool, ToolContext, ToolResult
 
 
@@ -26,8 +27,10 @@ class ToolRegistry:
                 }
             )
         return schema_list
-        
-    async def dispatch(self, name: str, params: dict, context: ToolContext) -> ToolResult:
+
+    async def dispatch(
+        self, name: str, params: dict, context: ToolContext
+    ) -> ToolResult:
         tool = self.get_tool(name)
         if not tool:
             return ToolResult(success=False, error=f"Unknown tool: {name}")

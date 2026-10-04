@@ -2,8 +2,8 @@
 
 Revision ID: xxxx_pgvector_init
 """
+
 from alembic import op
-import sqlalchemy as sa
 
 
 def upgrade() -> None:

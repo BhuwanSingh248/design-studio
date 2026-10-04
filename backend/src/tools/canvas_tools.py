@@ -1,4 +1,5 @@
 """Concrete canvas mutation tools."""
+
 from pydantic import BaseModel
 from src.tools.base import BaseTool, ToolContext, ToolResult
 
@@ -13,5 +14,7 @@ class CreateClassTool(BaseTool):
     description = "Add a new class or interface to the diagram canvas."
     parameters_schema = CreateClassParams
 
-    async def execute(self, params: CreateClassParams, context: ToolContext) -> ToolResult:
+    async def execute(
+        self, params: CreateClassParams, context: ToolContext
+    ) -> ToolResult:
         return ToolResult(success=True, data={"class_created": params.name})

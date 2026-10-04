@@ -7,7 +7,9 @@ class RemoveMethodTool(BaseTool):
     description = "Remove a method from a class on the canvas."
     input_schema = RemoveMethodInput
 
-    async def execute(self, params: RemoveMethodInput, context: ToolContext) -> ToolResult:
+    async def execute(
+        self, params: RemoveMethodInput, context: ToolContext
+    ) -> ToolResult:
         return ToolResult(
             success=True,
             data={

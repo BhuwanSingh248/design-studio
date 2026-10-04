@@ -1,5 +1,7 @@
 """Unit tests for canvas manipulation tools."""
+
 import asyncio
+
 import pytest
 from src.domain.models.canvas import CanvasState
 from src.domain.repositories.canvas_repository import CanvasRepository
@@ -84,7 +86,9 @@ def test_rename_class_tool(tool_context):
 
 def test_add_attribute_tool(tool_context):
     tool = AddAttributeTool()
-    params = AddAttributeInput(class_id="class-1", name="price", type="float", default="0.0")
+    params = AddAttributeInput(
+        class_id="class-1", name="price", type="float", default="0.0"
+    )
     result = asyncio.run(tool.execute(params, tool_context))
     assert result.success is True
     assert result.data["attribute_name"] == "price"
@@ -174,15 +178,11 @@ def test_tool_registry_dispatch(tool_context, create_class_tool):
     assert result.data["class_name"] == "Product"
 
     # Unknown tool dispatch
-    unknown_result = asyncio.run(
-        registry.dispatch("non_existent", {}, tool_context)
-    )
+    unknown_result = asyncio.run(registry.dispatch("non_existent", {}, tool_context))
     assert unknown_result.success is False
     assert "Unknown tool" in unknown_result.error
 
     # Validation error dispatch (missing required 'name')
-    invalid_result = asyncio.run(
-        registry.dispatch("create_class", {}, tool_context)
-    )
+    invalid_result = asyncio.run(registry.dispatch("create_class", {}, tool_context))
     assert invalid_result.success is False
     assert invalid_result.error is not None

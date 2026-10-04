@@ -1,7 +1,7 @@
+from src.domain.repositories.canvas_repository import CanvasRepository
+from src.domain.services.canvas_service import CanvasService
 from src.tools.base import BaseTool, ToolContext, ToolResult
 from src.tools.schemas import CreateClassInput
-from src.domain.services.canvas_service import CanvasService
-from src.domain.repositories.canvas_repository import CanvasRepository
 
 
 class CreateClassTool(BaseTool):
@@ -9,21 +9,21 @@ class CreateClassTool(BaseTool):
     description = "Create a new class on the design canvas."
     input_schema = CreateClassInput
 
-    def __init__(self, canvas_service:CanvasService, canvas_repository:CanvasRepository):
-        self.canvas_service=canvas_service
-        self.canvas_repository=canvas_repository
+    def __init__(
+        self, canvas_service: CanvasService, canvas_repository: CanvasRepository
+    ):
+        self.canvas_service = canvas_service
+        self.canvas_repository = canvas_repository
 
     async def execute(
-        self, 
-        params: CreateClassInput, 
-        context: ToolContext
+        self, params: CreateClassInput, context: ToolContext
     ) -> ToolResult:
         # obtain the CanvasState for context.canvas_id
-        canvas=await self.canvas_repository.get(context.canvas_id)
+        canvas = await self.canvas_repository.get(context.canvas_id)
 
         # call canvas_service.create_class(...)
         created_class = self.canvas_service.create_class(canvas, params.name)
-        
+
         # convert returned ClassDefinition into ToolResult
         return ToolResult(
             success=True,

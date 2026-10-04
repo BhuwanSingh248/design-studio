@@ -1,4 +1,5 @@
 """Autonomous agent tool execution loop with safety bounds."""
+
 from src.tools.base import ToolContext
 from src.tools.registry import ToolRegistry
 

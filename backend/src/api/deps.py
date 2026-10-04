@@ -1,5 +1,5 @@
 """FastAPI dependencies."""
-from typing import Generator
+
 from fastapi import Header, HTTPException, status
 
 

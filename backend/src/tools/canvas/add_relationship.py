@@ -7,7 +7,9 @@ class AddRelationshipTool(BaseTool):
     description = "Add a relationship between two classes on the canvas."
     input_schema = AddRelationshipInput
 
-    async def execute(self, params: AddRelationshipInput, context: ToolContext) -> ToolResult:
+    async def execute(
+        self, params: AddRelationshipInput, context: ToolContext
+    ) -> ToolResult:
         return ToolResult(
             success=True,
             data={

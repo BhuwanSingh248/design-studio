@@ -1,4 +1,5 @@
 """Multi-tenant workspace authorization and security controls."""
+
 from fastapi import HTTPException, status
 
 

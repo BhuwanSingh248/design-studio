@@ -1,5 +1,7 @@
 """Chat session and sliding-window context management."""
+
 from enum import Enum
+
 from pydantic import BaseModel, Field
 
 

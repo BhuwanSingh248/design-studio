@@ -1,25 +1,27 @@
 """Unit tests for LLMClient abstraction, retry mechanisms, and structured output."""
+
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
+
 import httpx
 import pytest
-from pydantic import BaseModel, ValidationError
 from groq import APIStatusError
+from pydantic import BaseModel, ValidationError
 from src.core.config import LLMSettings
 from src.core.exception import (
     LLMAuthenticationError,
     LLMConfigurationError,
-    LLMException,
-    LLMRateLimitError,
     LLMServiceError,
     LLMTimeoutError,
 )
 from src.llm.client import LLMClient
 from src.llm.cost_tracker import CostTracker
-from src.llm.schemas import DesignIssue, DesignReview
+from src.llm.schemas import DesignReview
 
 
-def make_api_status_error(status_code: int, message: str = "API Error") -> APIStatusError:
+def make_api_status_error(
+    status_code: int, message: str = "API Error"
+) -> APIStatusError:
     """Helper to construct a mock Groq APIStatusError with a specific status code."""
     request = httpx.Request("POST", "https://api.groq.com/chat/completions")
     response = httpx.Response(status_code=status_code, request=request)
@@ -39,15 +41,14 @@ def mock_settings():
 
 @pytest.fixture
 def mock_cost_tracker():
-    pricing = {
-        "mock-model": {"input": 0.0001, "output": 0.0002}
-    }
+    pricing = {"mock-model": {"input": 0.0001, "output": 0.0002}}
     return CostTracker(pricing=pricing)
 
 
 # ---------------------------------------------------------------------------
 # Retry Logic Tests
 # ---------------------------------------------------------------------------
+
 
 def test_execute_with_retries_immediate_success(mock_settings):
     """Verify that a successful function call returns immediately on attempt 1."""
@@ -63,7 +64,9 @@ def test_execute_with_retries_immediate_success(mock_settings):
 
 
 @pytest.mark.parametrize("status_code", [429, 500, 502, 503, 504])
-def test_execute_with_retries_transient_status_codes_retry_and_succeed(mock_settings, status_code):
+def test_execute_with_retries_transient_status_codes_retry_and_succeed(
+    mock_settings, status_code
+):
     """Verify that retryable HTTP status codes (429, 500, 502, 503, 504) are retried."""
     client = LLMClient(settings=mock_settings)
     error = make_api_status_error(status_code)
@@ -109,7 +112,9 @@ def test_execute_with_retries_exhaustion_raises(mock_settings):
     with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
         with pytest.raises(LLMServiceError):
             asyncio.run(
-                client._execute_with_retries(mock_func, max_retries=3, backoff_factor=0.1)
+                client._execute_with_retries(
+                    mock_func, max_retries=3, backoff_factor=0.1
+                )
             )
 
         assert mock_func.await_count == 3
@@ -138,9 +143,7 @@ def test_execute_with_retries_non_retryable_status_codes_fail_immediately(
 
     with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
         with pytest.raises(expected_exception):
-            asyncio.run(
-                client._execute_with_retries(mock_func, max_retries=3)
-            )
+            asyncio.run(client._execute_with_retries(mock_func, max_retries=3))
 
         # Should not retry at all
         assert mock_func.await_count == 1
@@ -154,9 +157,7 @@ def test_execute_with_retries_non_api_exception_fails_immediately(mock_settings)
 
     with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
         with pytest.raises(ValueError, match="Invalid model argument"):
-            asyncio.run(
-                client._execute_with_retries(mock_func, max_retries=3)
-            )
+            asyncio.run(client._execute_with_retries(mock_func, max_retries=3))
 
         assert mock_func.await_count == 1
         mock_sleep.assert_not_called()
@@ -165,6 +166,7 @@ def test_execute_with_retries_non_api_exception_fails_immediately(mock_settings)
 # ---------------------------------------------------------------------------
 # Chat and Cost Tracking Tests
 # ---------------------------------------------------------------------------
+
 
 def test_chat_method_retries_and_tracks_cost(mock_settings, mock_cost_tracker):
     """Verify chat() leverages retry loop and records cost upon success."""
@@ -182,7 +184,9 @@ def test_chat_method_retries_and_tracks_cost(mock_settings, mock_cost_tracker):
 
     error_429 = make_api_status_error(429)
     # Fail on first call, succeed on second call
-    client._client.chat.completions.create = AsyncMock(side_effect=[error_429, fake_response])
+    client._client.chat.completions.create = AsyncMock(
+        side_effect=[error_429, fake_response]
+    )
 
     with patch("asyncio.sleep", new_callable=AsyncMock):
         response = asyncio.run(
@@ -208,9 +212,7 @@ def test_chat_method_unrecoverable_error_raises(mock_settings):
 
     with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
         with pytest.raises(LLMAuthenticationError):
-            asyncio.run(
-                client.chat(messages=[{"role": "user", "content": "Hi"}])
-            )
+            asyncio.run(client.chat(messages=[{"role": "user", "content": "Hi"}]))
 
         assert client._client.chat.completions.create.await_count == 1
         mock_sleep.assert_not_called()
@@ -227,9 +229,7 @@ def test_chat_without_cost_tracker(mock_settings):
 
     client._client.chat.completions.create = AsyncMock(return_value=fake_response)
 
-    response = asyncio.run(
-        client.chat(messages=[{"role": "user", "content": "Hi"}])
-    )
+    response = asyncio.run(client.chat(messages=[{"role": "user", "content": "Hi"}]))
 
     assert response == fake_response
     assert client.calculate_session_cost("session-1") is None
@@ -238,6 +238,7 @@ def test_chat_without_cost_tracker(mock_settings):
 # ---------------------------------------------------------------------------
 # Structured Output Tests
 # ---------------------------------------------------------------------------
+
 
 class DummySchema(BaseModel):
     name: str
@@ -252,7 +253,9 @@ def test_chat_structured_success_plain_json(mock_settings):
     fake_response.model = "mock-model"
     fake_response.usage.prompt_tokens = 10
     fake_response.usage.completion_tokens = 20
-    fake_response.choices = [MagicMock(message=MagicMock(content='{"name": "diagram", "count": 3}'))]
+    fake_response.choices = [
+        MagicMock(message=MagicMock(content='{"name": "diagram", "count": 3}'))
+    ]
 
     client._client.chat.completions.create = AsyncMock(return_value=fake_response)
 
@@ -359,6 +362,7 @@ def test_chat_structured_invalid_json_raises_validation_error(mock_settings):
 # ---------------------------------------------------------------------------
 # Normalization Helper Tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize(
     "raw_input,expected",

@@ -1,4 +1,5 @@
 """Direct LLM chat endpoint."""
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 from src.core.config import llm_settings
@@ -15,7 +16,7 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    reply:DesignReview
+    reply: DesignReview
 
 
 @router.post("", response_model=ChatResponse)

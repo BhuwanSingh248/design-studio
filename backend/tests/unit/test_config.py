@@ -1,6 +1,5 @@
 import pytest
 from pydantic import ValidationError
-
 from src.core.config import LLMSettings
 
 
@@ -27,7 +26,6 @@ def test_missing_api_key(monkeypatch):
             provider="groq",
             timeout=30,
         )
-
 
 
 def test_invalid_timeout():

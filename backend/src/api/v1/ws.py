@@ -1,4 +1,5 @@
 """WebSocket real-time collaboration endpoint."""
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 router = APIRouter(prefix="/ws", tags=["Collaboration"])

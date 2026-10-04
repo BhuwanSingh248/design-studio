@@ -1,4 +1,5 @@
 """Integration tests for LangGraph state machine."""
+
 from src.agents.graph import DesignWorkflowGraph
 
 

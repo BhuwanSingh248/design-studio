@@ -1,4 +1,5 @@
 """Canvas and session snapshot persistence repository."""
+
 from src.domain.models.canvas import CanvasState
 
 

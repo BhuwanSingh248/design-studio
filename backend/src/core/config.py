@@ -1,5 +1,6 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class LLMSettings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -13,5 +14,6 @@ class LLMSettings(BaseSettings):
     model: str
     provider: str
     timeout: int = Field(default=30, gt=0)
-    
+
+
 llm_settings = LLMSettings()

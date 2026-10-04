@@ -1,4 +1,5 @@
 """Splits markdown documents into structured token-bounded chunks."""
+
 from dataclasses import dataclass
 
 
@@ -16,4 +17,11 @@ class DocumentChunker:
         self.overlap = overlap
 
     def chunk_markdown(self, text: str, source_title: str) -> list[DocumentChunk]:
-        return [DocumentChunk(chunk_id="1", title=source_title, content=text[:1000], token_count=len(text.split()))]
+        return [
+            DocumentChunk(
+                chunk_id="1",
+                title=source_title,
+                content=text[:1000],
+                token_count=len(text.split()),
+            )
+        ]

@@ -1,8 +1,9 @@
 """API v1 routes."""
+
 from fastapi import APIRouter
-from src.api.v1.chat import router as chat_router
-from src.api.v1.canvas import router as canvas_router
 from src.api.v1.agent import router as agent_router
+from src.api.v1.canvas import router as canvas_router
+from src.api.v1.chat import router as chat_router
 from src.api.v1.ws import router as ws_router
 
 api_v1_router = APIRouter(prefix="/api/v1")

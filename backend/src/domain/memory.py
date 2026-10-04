@@ -1,4 +1,5 @@
 """Architectural design decision memory tracker."""
+
 from dataclasses import dataclass
 
 

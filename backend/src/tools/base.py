@@ -1,7 +1,9 @@
 """Base tool interfaces and standardized execution payloads."""
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -20,12 +22,13 @@ class ToolResult:
 
 class BaseTool(ABC):
     """
-        Contract for an executable application tool.
+    Contract for an executable application tool.
 
-        Tools receive validated parameters and execution context,
-        perform an application operation, and return a standardized
-        ToolResult.
+    Tools receive validated parameters and execution context,
+    perform an application operation, and return a standardized
+    ToolResult.
     """
+
     name: str
     description: str
     input_schema: type[BaseModel]

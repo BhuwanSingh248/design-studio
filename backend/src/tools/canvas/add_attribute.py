@@ -7,7 +7,9 @@ class AddAttributeTool(BaseTool):
     description = "Add an attribute/field to a class on the canvas."
     input_schema = AddAttributeInput
 
-    async def execute(self, params: AddAttributeInput, context: ToolContext) -> ToolResult:
+    async def execute(
+        self, params: AddAttributeInput, context: ToolContext
+    ) -> ToolResult:
         return ToolResult(
             success=True,
             data={

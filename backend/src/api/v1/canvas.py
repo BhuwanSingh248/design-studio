@@ -1,4 +1,5 @@
 """Canvas state manipulation and query endpoints."""
+
 from fastapi import APIRouter
 
 router = APIRouter(prefix="/canvas", tags=["Canvas"])

@@ -1,4 +1,6 @@
 """Query transformation and semantic expansion."""
+
+
 class QueryTransformer:
     @staticmethod
     def expand_query(raw_query: str) -> str:

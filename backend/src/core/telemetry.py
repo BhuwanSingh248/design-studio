@@ -1,4 +1,5 @@
 """Structured telemetry, correlation IDs, and OpenTelemetry logging."""
+
 import logging
 import uuid
 

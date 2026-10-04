@@ -7,7 +7,9 @@ class RemoveAttributeTool(BaseTool):
     description = "Remove an attribute/field from a class on the canvas."
     input_schema = RemoveAttributeInput
 
-    async def execute(self, params: RemoveAttributeInput, context: ToolContext) -> ToolResult:
+    async def execute(
+        self, params: RemoveAttributeInput, context: ToolContext
+    ) -> ToolResult:
         return ToolResult(
             success=True,
             data={

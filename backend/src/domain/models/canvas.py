@@ -1,5 +1,7 @@
 """Canonical domain models for UML class diagrams."""
+
 from enum import Enum
+
 from pydantic import BaseModel, Field
 
 

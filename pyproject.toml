@@ -18,3 +18,29 @@ dependencies = [
 pythonpath = ["backend", "backend/src"]
 testpaths = ["backend/tests"]
 
+[dependency-groups]
+dev = [
+    "ruff>=0.16.10",
+]
+
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "F",   # Pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+]
+
+ignore = [
+    "E501", # line too long - formatter handles this
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

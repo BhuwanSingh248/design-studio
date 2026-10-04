@@ -1,4 +1,5 @@
 """LangGraph AgentState TypedDict."""
+
 from typing import Any, TypedDict
 
 

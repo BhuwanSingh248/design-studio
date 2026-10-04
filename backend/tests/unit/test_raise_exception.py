@@ -1,4 +1,5 @@
 """Unit tests for raise_llm_exception mapping helper."""
+
 import httpx
 import pytest
 from groq import APIStatusError

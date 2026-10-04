@@ -7,7 +7,9 @@ class RenameClassTool(BaseTool):
     description = "Rename an existing class on the design canvas."
     input_schema = RenameClassInput
 
-    async def execute(self, params: RenameClassInput, context: ToolContext) -> ToolResult:
+    async def execute(
+        self, params: RenameClassInput, context: ToolContext
+    ) -> ToolResult:
         return ToolResult(
             success=True,
             data={

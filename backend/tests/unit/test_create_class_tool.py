@@ -1,8 +1,9 @@
 """Unit tests for CreateClassTool."""
+
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
-import pytest
 
+import pytest
 from src.domain.models.canvas import CanvasState, ClassDefinition
 from src.domain.repositories.canvas_repository import CanvasRepository
 from src.domain.services.canvas_service import CanvasService
@@ -45,6 +46,7 @@ def create_class_tool(
 # 1. Metadata and Initialization Tests
 # =====================================================================
 
+
 def test_create_class_tool_metadata(create_class_tool: CreateClassTool):
     """Test tool attributes and schema configuration."""
     assert create_class_tool.name == "create_class"
@@ -55,6 +57,7 @@ def test_create_class_tool_metadata(create_class_tool: CreateClassTool):
 # =====================================================================
 # 2. Execution Tests (Direct Call)
 # =====================================================================
+
 
 def test_execute_success(
     create_class_tool: CreateClassTool,
@@ -110,7 +113,9 @@ def test_execute_duplicate_class_raises_value_error(
     tool_context: ToolContext,
 ):
     """Test that creating a class with an existing name raises ValueError."""
-    asyncio.run(create_class_tool.execute(CreateClassInput(name="Product"), tool_context))
+    asyncio.run(
+        create_class_tool.execute(CreateClassInput(name="Product"), tool_context)
+    )
 
     with pytest.raises(ValueError, match="Class Product already exists."):
         asyncio.run(
@@ -132,6 +137,7 @@ def test_execute_canvas_not_found_raises_value_error(
 # =====================================================================
 # 3. Unit Isolation Tests (Mocked Dependencies)
 # =====================================================================
+
 
 def test_execute_with_mocked_dependencies(tool_context: ToolContext):
     """Test tool interaction with CanvasRepository and CanvasService in isolation."""
@@ -166,6 +172,7 @@ def test_execute_with_mocked_dependencies(tool_context: ToolContext):
 # =====================================================================
 # 4. ToolRegistry Integration Tests (Dispatch & Validation)
 # =====================================================================
+
 
 def test_tool_registry_registration_and_schemas(create_class_tool: CreateClassTool):
     """Test registering tool in ToolRegistry and inspecting generated schemas."""
@@ -244,11 +251,15 @@ def test_tool_registry_dispatch_duplicate_class_error(
     registry.register_tool(create_class_tool)
 
     # First dispatch succeeds
-    res1 = asyncio.run(registry.dispatch("create_class", {"name": "User"}, tool_context))
+    res1 = asyncio.run(
+        registry.dispatch("create_class", {"name": "User"}, tool_context)
+    )
     assert res1.success is True
 
     # Second dispatch with same name returns failure ToolResult
-    res2 = asyncio.run(registry.dispatch("create_class", {"name": "User"}, tool_context))
+    res2 = asyncio.run(
+        registry.dispatch("create_class", {"name": "User"}, tool_context)
+    )
     assert res2.success is False
     assert "Class User already exists." in res2.error
 

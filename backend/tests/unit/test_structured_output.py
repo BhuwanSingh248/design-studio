@@ -1,4 +1,5 @@
 """Unit tests for domain models and structured schema validation."""
+
 from src.domain.models.canvas import Attribute, ClassDefinition, Visibility
 
 

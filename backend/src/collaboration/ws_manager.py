@@ -1,4 +1,5 @@
 """WebSocket connection and presence manager."""
+
 from fastapi import WebSocket
 
 

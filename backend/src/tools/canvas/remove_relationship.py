@@ -7,7 +7,9 @@ class RemoveRelationshipTool(BaseTool):
     description = "Remove a relationship between two classes on the canvas."
     input_schema = RemoveRelationshipInput
 
-    async def execute(self, params: RemoveRelationshipInput, context: ToolContext) -> ToolResult:
+    async def execute(
+        self, params: RemoveRelationshipInput, context: ToolContext
+    ) -> ToolResult:
         return ToolResult(
             success=True,
             data={
