@@ -1,20 +1,25 @@
-"""Concrete canvas mutation tools."""
+"""Compatibility exports for the canonical canvas mutation tools."""
 
-from pydantic import BaseModel
-from src.tools.base import BaseTool, ToolContext, ToolResult
+from src.tools.canvas import (
+    AddAttributeTool,
+    AddMethodTool,
+    AddRelationshipTool,
+    CreateClassTool,
+    DeleteClassTool,
+    RemoveAttributeTool,
+    RemoveMethodTool,
+    RemoveRelationshipTool,
+    RenameClassTool,
+)
 
-
-class CreateClassParams(BaseModel):
-    name: str
-    stereotype: str = "entity"
-
-
-class CreateClassTool(BaseTool):
-    name = "create_class"
-    description = "Add a new class or interface to the diagram canvas."
-    parameters_schema = CreateClassParams
-
-    async def execute(
-        self, params: CreateClassParams, context: ToolContext
-    ) -> ToolResult:
-        return ToolResult(success=True, data={"class_created": params.name})
+__all__ = [
+    "CreateClassTool",
+    "DeleteClassTool",
+    "RenameClassTool",
+    "AddAttributeTool",
+    "RemoveAttributeTool",
+    "AddMethodTool",
+    "RemoveMethodTool",
+    "AddRelationshipTool",
+    "RemoveRelationshipTool",
+]

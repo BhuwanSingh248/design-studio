@@ -32,9 +32,11 @@ class Attribute(BaseModel):
     name: str
     data_type: str = "str"
     visibility: Visibility = Visibility.PUBLIC
+    default: str | None = None
 
     def to_uml_string(self) -> str:
-        return f"{self.visibility.value} {self.name}: {self.data_type}"
+        default = f" = {self.default}" if self.default is not None else ""
+        return f"{self.visibility.value} {self.name}: {self.data_type}{default}"
 
 
 class Method(BaseModel):

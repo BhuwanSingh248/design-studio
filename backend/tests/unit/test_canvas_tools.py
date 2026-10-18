@@ -1,9 +1,17 @@
-"""Unit tests for canvas manipulation tools."""
+"""State-based tests for the canvas mutation tools."""
 
 import asyncio
 
 import pytest
-from src.domain.models.canvas import CanvasState
+from pydantic import ValidationError
+from src.domain.models.canvas import (
+    Attribute,
+    CanvasState,
+    ClassDefinition,
+    Method,
+    Relationship,
+    RelationshipType,
+)
 from src.domain.repositories.canvas_repository import CanvasRepository
 from src.domain.services.canvas_service import CanvasService
 from src.tools.base import ToolContext
@@ -25,7 +33,6 @@ from src.tools.schemas import (
     AddRelationshipInput,
     CreateClassInput,
     DeleteClassInput,
-    RelationshipType,
     RemoveAttributeInput,
     RemoveMethodInput,
     RemoveRelationshipInput,
@@ -34,155 +41,336 @@ from src.tools.schemas import (
 
 
 @pytest.fixture
-def tool_context():
+def tool_context() -> ToolContext:
     return ToolContext(workspace_id="ws-1", canvas_id="canvas-1")
 
 
 @pytest.fixture
-def canvas_service():
+def canvas_service() -> CanvasService:
     return CanvasService()
 
 
 @pytest.fixture
-def canvas_repository(tool_context):
-    repo = CanvasRepository()
-    canvas = CanvasState()
-    asyncio.run(repo.save(tool_context.canvas_id, canvas))
-    return repo
+def canvas_repository(tool_context: ToolContext) -> CanvasRepository:
+    repository = CanvasRepository()
+    asyncio.run(
+        repository.save(
+            tool_context.workspace_id,
+            tool_context.canvas_id,
+            CanvasState(),
+        )
+    )
+    return repository
 
 
-@pytest.fixture
-def create_class_tool(canvas_service, canvas_repository):
-    return CreateClassTool(
+def seed_canvas(
+    repository: CanvasRepository,
+    context: ToolContext,
+    canvas: CanvasState,
+) -> None:
+    asyncio.run(
+        repository.save(context.workspace_id, context.canvas_id, canvas)
+    )
+
+
+def make_tool(tool_type, canvas_service, canvas_repository):
+    return tool_type(
         canvas_service=canvas_service,
         canvas_repository=canvas_repository,
     )
 
 
-def test_create_class_tool(tool_context, create_class_tool):
-    tool = create_class_tool
-    params = CreateClassInput(name="Order")
-    result = asyncio.run(tool.execute(params, tool_context))
-    assert result.success is True
-    assert result.data["class_name"] == "Order"
-    assert result.data["canvas_id"] == "canvas-1"
-
-
-def test_delete_class_tool(tool_context):
-    tool = DeleteClassTool()
-    params = DeleteClassInput(class_id="class-1")
-    result = asyncio.run(tool.execute(params, tool_context))
-    assert result.success is True
-    assert result.data["class_id"] == "class-1"
-
-
-def test_rename_class_tool(tool_context):
-    tool = RenameClassTool()
-    params = RenameClassInput(class_id="class-1", new_name="SpecialOrder")
-    result = asyncio.run(tool.execute(params, tool_context))
-    assert result.success is True
-    assert result.data["new_name"] == "SpecialOrder"
-
-
-def test_add_attribute_tool(tool_context):
-    tool = AddAttributeTool()
-    params = AddAttributeInput(
-        class_id="class-1", name="price", type="float", default="0.0"
-    )
-    result = asyncio.run(tool.execute(params, tool_context))
-    assert result.success is True
-    assert result.data["attribute_name"] == "price"
-    assert result.data["attribute_type"] == "float"
-
-
-def test_remove_attribute_tool(tool_context):
-    tool = RemoveAttributeTool()
-    params = RemoveAttributeInput(class_id="class-1", name="price")
-    result = asyncio.run(tool.execute(params, tool_context))
-    assert result.success is True
-    assert result.data["attribute_name"] == "price"
-
-
-def test_add_method_tool(tool_context):
-    tool = AddMethodTool()
-    params = AddMethodInput(
-        class_id="class-1",
-        name="calculate_total",
-        return_type="float",
-        parameters=["tax: float"],
-    )
-    result = asyncio.run(tool.execute(params, tool_context))
-    assert result.success is True
-    assert result.data["method_name"] == "calculate_total"
-    assert result.data["parameters"] == ["tax: float"]
-
-
-def test_remove_method_tool(tool_context):
-    tool = RemoveMethodTool()
-    params = RemoveMethodInput(class_id="class-1", name="calculate_total")
-    result = asyncio.run(tool.execute(params, tool_context))
-    assert result.success is True
-    assert result.data["method_name"] == "calculate_total"
-
-
-def test_add_relationship_tool(tool_context):
-    tool = AddRelationshipTool()
-    params = AddRelationshipInput(
-        source_id="class-1",
-        target_id="class-2",
-        relationship_type=RelationshipType.composition,
-    )
-    result = asyncio.run(tool.execute(params, tool_context))
-    assert result.success is True
-    assert result.data["relationship_type"] == "COMPOSITION"
-
-
-def test_remove_relationship_tool(tool_context):
-    tool = RemoveRelationshipTool()
-    params = RemoveRelationshipInput(
-        source_id="class-1",
-        target_id="class-2",
-        relationship_type=RelationshipType.composition,
-    )
-    result = asyncio.run(tool.execute(params, tool_context))
-    assert result.success is True
-    assert result.data["source_id"] == "class-1"
-
-
-def test_tool_registry_registration_and_schemas(create_class_tool):
-    registry = ToolRegistry()
-    tool = create_class_tool
-    registry.register_tool(tool)
-
-    assert registry.get_tool("create_class") is tool
-
-    # Duplicate registration raises error
-    with pytest.raises(ValueError, match="Tool create_class already registered"):
-        registry.register_tool(tool)
-
-    schemas = registry.schemas
-    assert len(schemas["tools"]) == 1
-    assert schemas["tools"][0]["name"] == "create_class"
-    assert "properties" in schemas["tools"][0]["input_schema"]
-
-
-def test_tool_registry_dispatch(tool_context, create_class_tool):
-    registry = ToolRegistry()
-    registry.register_tool(create_class_tool)
-
-    # Valid dispatch
+def test_create_class_tool_persists_canvas(
+    tool_context, canvas_service, canvas_repository
+):
+    tool = make_tool(CreateClassTool, canvas_service, canvas_repository)
     result = asyncio.run(
-        registry.dispatch("create_class", {"name": "Product"}, tool_context)
+        tool.execute(CreateClassInput(name="Order"), tool_context)
+    )
+
+    canvas = asyncio.run(
+        canvas_repository.get(tool_context.workspace_id, tool_context.canvas_id)
     )
     assert result.success is True
-    assert result.data["class_name"] == "Product"
+    assert result.data["operation"] == "create_class"
+    assert result.data["class_name"] == "Order"
+    assert canvas.classes[0].id == result.data["class_id"]
+    assert canvas.classes[0].name == "Order"
 
-    # Unknown tool dispatch
-    unknown_result = asyncio.run(registry.dispatch("non_existent", {}, tool_context))
-    assert unknown_result.success is False
-    assert "Unknown tool" in unknown_result.error
 
-    # Validation error dispatch (missing required 'name')
-    invalid_result = asyncio.run(registry.dispatch("create_class", {}, tool_context))
-    assert invalid_result.success is False
-    assert invalid_result.error is not None
+def test_delete_class_tool_removes_class_and_relationships(
+    tool_context, canvas_service, canvas_repository
+):
+    user = ClassDefinition(id="user", name="User")
+    order = ClassDefinition(id="order", name="Order")
+    relationship = Relationship(
+        id="user-order",
+        source_id=user.id,
+        target_id=order.id,
+        relation_type=RelationshipType.ASSOCIATION,
+    )
+    seed_canvas(
+        canvas_repository,
+        tool_context,
+        CanvasState(classes=[user, order], relationships=[relationship]),
+    )
+    tool = make_tool(DeleteClassTool, canvas_service, canvas_repository)
+
+    result = asyncio.run(
+        tool.execute(DeleteClassInput(class_id="order"), tool_context)
+    )
+    canvas = asyncio.run(
+        canvas_repository.get(tool_context.workspace_id, tool_context.canvas_id)
+    )
+
+    assert result.success is True
+    assert result.data["class_id"] == "order"
+    assert [item.id for item in canvas.classes] == ["user"]
+    assert canvas.relationships == []
+
+
+def test_rename_class_tool_persists_renamed_class(
+    tool_context, canvas_service, canvas_repository
+):
+    seed_canvas(
+        canvas_repository,
+        tool_context,
+        CanvasState(classes=[ClassDefinition(id="order", name="Order")]),
+    )
+    tool = make_tool(RenameClassTool, canvas_service, canvas_repository)
+
+    result = asyncio.run(
+        tool.execute(
+            RenameClassInput(class_id="order", new_name="PurchaseOrder"),
+            tool_context,
+        )
+    )
+    canvas = asyncio.run(
+        canvas_repository.get(tool_context.workspace_id, tool_context.canvas_id)
+    )
+
+    assert result.success is True
+    assert result.data["class_id"] == "order"
+    assert result.data["new_name"] == "PurchaseOrder"
+    assert canvas.classes[0].name == "PurchaseOrder"
+
+
+def test_add_and_remove_attribute_tools_mutate_state(
+    tool_context, canvas_service, canvas_repository
+):
+    seed_canvas(
+        canvas_repository,
+        tool_context,
+        CanvasState(classes=[ClassDefinition(id="order", name="Order")]),
+    )
+    add_tool = make_tool(AddAttributeTool, canvas_service, canvas_repository)
+    remove_tool = make_tool(RemoveAttributeTool, canvas_service, canvas_repository)
+
+    added = asyncio.run(
+        add_tool.execute(
+            AddAttributeInput(
+                class_id="order",
+                name="total",
+                type="decimal",
+                default="0.00",
+            ),
+            tool_context,
+        )
+    )
+    canvas = asyncio.run(
+        canvas_repository.get(tool_context.workspace_id, tool_context.canvas_id)
+    )
+    assert added.data["attribute_name"] == "total"
+    assert canvas.classes[0].attributes == [
+        Attribute(name="total", data_type="decimal", default="0.00")
+    ]
+
+    removed = asyncio.run(
+        remove_tool.execute(
+            RemoveAttributeInput(class_id="order", name="total"),
+            tool_context,
+        )
+    )
+    canvas = asyncio.run(
+        canvas_repository.get(tool_context.workspace_id, tool_context.canvas_id)
+    )
+    assert removed.data["attribute_name"] == "total"
+    assert canvas.classes[0].attributes == []
+
+
+def test_add_and_remove_method_tools_mutate_state(
+    tool_context, canvas_service, canvas_repository
+):
+    seed_canvas(
+        canvas_repository,
+        tool_context,
+        CanvasState(classes=[ClassDefinition(id="order", name="Order")]),
+    )
+    add_tool = make_tool(AddMethodTool, canvas_service, canvas_repository)
+    remove_tool = make_tool(RemoveMethodTool, canvas_service, canvas_repository)
+
+    added = asyncio.run(
+        add_tool.execute(
+            AddMethodInput(
+                class_id="order",
+                name="calculate_total",
+                return_type="decimal",
+                parameters=["tax: decimal"],
+            ),
+            tool_context,
+        )
+    )
+    canvas = asyncio.run(
+        canvas_repository.get(tool_context.workspace_id, tool_context.canvas_id)
+    )
+    assert added.data["method_name"] == "calculate_total"
+    assert canvas.classes[0].methods == [
+        Method(
+            name="calculate_total",
+            return_type="decimal",
+            parameters=["tax: decimal"],
+        )
+    ]
+
+    removed = asyncio.run(
+        remove_tool.execute(
+            RemoveMethodInput(class_id="order", name="calculate_total"),
+            tool_context,
+        )
+    )
+    canvas = asyncio.run(
+        canvas_repository.get(tool_context.workspace_id, tool_context.canvas_id)
+    )
+    assert removed.data["method_name"] == "calculate_total"
+    assert canvas.classes[0].methods == []
+
+
+def test_add_and_remove_relationship_tools_mutate_state(
+    tool_context, canvas_service, canvas_repository
+):
+    seed_canvas(
+        canvas_repository,
+        tool_context,
+        CanvasState(
+            classes=[
+                ClassDefinition(id="user", name="User"),
+                ClassDefinition(id="order", name="Order"),
+            ]
+        ),
+    )
+    add_tool = make_tool(AddRelationshipTool, canvas_service, canvas_repository)
+    remove_tool = make_tool(
+        RemoveRelationshipTool, canvas_service, canvas_repository
+    )
+    params = AddRelationshipInput(
+        source_id="user",
+        target_id="order",
+        relationship_type=RelationshipType.ASSOCIATION,
+    )
+
+    added = asyncio.run(add_tool.execute(params, tool_context))
+    canvas = asyncio.run(
+        canvas_repository.get(tool_context.workspace_id, tool_context.canvas_id)
+    )
+    assert added.data["relationship_type"] == "association"
+    assert len(canvas.relationships) == 1
+    assert canvas.relationships[0].id == added.data["relationship_id"]
+
+    removed = asyncio.run(
+        remove_tool.execute(
+            RemoveRelationshipInput(
+                source_id="user",
+                target_id="order",
+                relationship_type=RelationshipType.ASSOCIATION,
+            ),
+            tool_context,
+        )
+    )
+    canvas = asyncio.run(
+        canvas_repository.get(tool_context.workspace_id, tool_context.canvas_id)
+    )
+    assert removed.data["relationship_id"] == added.data["relationship_id"]
+    assert canvas.relationships == []
+
+
+def test_registry_validates_inputs_and_returns_domain_failures(
+    tool_context, canvas_service, canvas_repository
+):
+    registry = ToolRegistry()
+    registry.register_tool(
+        make_tool(CreateClassTool, canvas_service, canvas_repository)
+    )
+    registry.register_tool(
+        make_tool(RenameClassTool, canvas_service, canvas_repository)
+    )
+
+    created = asyncio.run(
+        registry.dispatch("create_class", {"name": "Order"}, tool_context)
+    )
+    assert created.success is True
+
+    invalid = asyncio.run(
+        registry.dispatch("create_class", {"name": "   "}, tool_context)
+    )
+    assert invalid.success is False
+
+    duplicate = asyncio.run(
+        registry.dispatch("create_class", {"name": "Order"}, tool_context)
+    )
+    assert duplicate.success is False
+    assert "already exists" in duplicate.error
+
+    unknown = asyncio.run(
+        registry.dispatch("not_a_tool", {}, tool_context)
+    )
+    assert unknown.success is False
+    assert "Unknown tool" in unknown.error
+
+
+def test_failed_tool_operation_does_not_mutate_repository_state(
+    tool_context, canvas_service, canvas_repository
+):
+    seed_canvas(
+        canvas_repository,
+        tool_context,
+        CanvasState(
+            classes=[
+                ClassDefinition(id="user", name="User"),
+                ClassDefinition(id="order", name="Order"),
+            ]
+        ),
+    )
+    tool = make_tool(RenameClassTool, canvas_service, canvas_repository)
+
+    with pytest.raises(ValueError, match="already exists"):
+        asyncio.run(
+            tool.execute(
+                RenameClassInput(class_id="user", new_name="Order"),
+                tool_context,
+            )
+        )
+
+    canvas = asyncio.run(
+        canvas_repository.get(tool_context.workspace_id, tool_context.canvas_id)
+    )
+    assert {item.id: item.name for item in canvas.classes} == {
+        "user": "User",
+        "order": "Order",
+    }
+
+
+def test_relationship_schema_accepts_only_canonical_domain_values():
+    for relation_type in RelationshipType:
+        parsed = AddRelationshipInput(
+            source_id="source",
+            target_id="target",
+            relationship_type=relation_type.value,
+        )
+        assert parsed.relationship_type is relation_type
+
+    with pytest.raises(ValidationError):
+        AddRelationshipInput(
+            source_id="source",
+            target_id="target",
+            relationship_type="DEPENDENCY",
+        )

@@ -10,7 +10,9 @@ class DeleteClassTool(BaseTool):
     input_schema = DeleteClassInput
 
     def __init__(
-        self, canvas_service: CanvasService, canvas_repository: CanvasRepository
+        self,
+        canvas_service: CanvasService,
+        canvas_repository: CanvasRepository,
     ):
         self.canvas_service = canvas_service
         self.canvas_repository = canvas_repository
@@ -18,10 +20,13 @@ class DeleteClassTool(BaseTool):
     async def execute(
         self, params: DeleteClassInput, context: ToolContext
     ) -> ToolResult:
-        canvas = await self.canvas_repository.get(context.canvas_id)
+        canvas = await self.canvas_repository.get(
+            context.workspace_id, context.canvas_id
+        )
         self.canvas_service.delete_class(canvas, params.class_id)
-
-        await self.canvas_repository.save(context.canvas_id, canvas)
+        await self.canvas_repository.save(
+            context.workspace_id, context.canvas_id, canvas
+        )
         return ToolResult(
             success=True,
             data={
