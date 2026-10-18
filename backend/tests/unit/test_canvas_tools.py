@@ -3,6 +3,7 @@
 import asyncio
 
 import pytest
+from pydantic import ValidationError
 from src.domain.models.canvas import (
     Attribute,
     CanvasState,
@@ -356,3 +357,20 @@ def test_failed_tool_operation_does_not_mutate_repository_state(
         "user": "User",
         "order": "Order",
     }
+
+
+def test_relationship_schema_accepts_only_canonical_domain_values():
+    for relation_type in RelationshipType:
+        parsed = AddRelationshipInput(
+            source_id="source",
+            target_id="target",
+            relationship_type=relation_type.value,
+        )
+        assert parsed.relationship_type is relation_type
+
+    with pytest.raises(ValidationError):
+        AddRelationshipInput(
+            source_id="source",
+            target_id="target",
+            relationship_type="DEPENDENCY",
+        )
