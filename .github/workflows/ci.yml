@@ -9,6 +9,12 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      # Non-secret placeholders allow settings to load during test collection.
+      # Tests mock provider calls and must never use these as real credentials.
+      LLM_API_KEY: ci-test-key
+      LLM_MODEL: ci-test-model
+      LLM_PROVIDER: groq
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python 3.12
