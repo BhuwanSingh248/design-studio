@@ -816,6 +816,164 @@ classDiagram
 
 ---
 
+## 4. Current Learning Roadmap and Next Steps
+
+The detailed architecture notes below describe the longer-term product vision. Use this section as the execution roadmap for the current codebase, and do not implement future phases ahead of the prerequisites.
+
+### Current status (reviewed against `main` on 2026-10-18)
+
+- [x] Phase 1: LLM API fundamentals through `LLMClient`, retries, usage/cost tracking.
+- [x] Phase 2: structured output using Pydantic validation.
+- [ ] Phase 3: safe canvas tools. `CreateClassTool`, `DeleteClassTool`, and `RenameClassTool` exist, but the rename tool currently calls repository methods that do not exist. Other canvas tools still return success payloads without mutating the canvas.
+- [ ] Batch tool/service tests after the canvas operation implementations are complete.
+- [ ] Phase 4 onward is planned, not implemented.
+
+### Phase 3: Finish safe canvas operations
+
+Architectural boundary: `ToolContext → Repository.get() → CanvasService operation → Repository.save() → ToolResult`. The schema validates input shape; the domain service validates business rules. All changes must be executed by application code, never directly by the LLM.
+
+Implement one task at a time, in this order:
+
+1. [ ] Fix `backend/src/tools/canvas/rename_class.py` to use `CanvasRepository.get(canvas_id)` and `save(canvas_id, canvas)`. The current implementation uses `get_canvas(workspace_id, canvas_id)` and a three-argument `save`, which are not present in the repository.
+2. [ ] Implement `CanvasService.add_attribute`: validate class exists, define duplicate-name behavior, create an `Attribute`, and map the input `type` to domain `data_type`.
+3. [ ] Implement `AddAttributeTool` with repository → service → save → result flow.
+4. [ ] Implement `CanvasService.remove_attribute` and `RemoveAttributeTool`, with class/attribute existence checks.
+5. [ ] Implement `CanvasService.add_method` and `AddMethodTool`, including duplicate method-name/signature policy and mapping parameters/return type correctly.
+6. [ ] Implement `CanvasService.remove_method` and `RemoveMethodTool`, with class/method existence checks.
+7. [ ] Unify the relationship enum before implementing relationship operations. Tool schema currently uses uppercase enum values and includes `DEPENDENCY`; domain enum uses lowercase values and includes `REALIZATION`. Pick one canonical domain enum and reuse it in input schemas.
+8. [ ] Implement `CanvasService.add_relationship` and `AddRelationshipTool`: validate both endpoints exist, define self-link behavior, define duplicate identity, generate relationship ID, and persist.
+9. [ ] Implement `CanvasService.remove_relationship` and `RemoveRelationshipTool`, with explicit matching rules for source, target, and type.
+10. [ ] Batch tests across all operations. Replace stub tests in `backend/tests/unit/test_canvas_tools.py` with state-based assertions. Add service tests for happy paths, missing identifiers, duplicates, and no mutation on failure. Test tools for repository interactions, save calls, payloads, and domain failures.
+11. [ ] Update `backend/tests/unit/test_create_class_tool.py` to assert `repository.save` in the mocked-dependency test.
+12. [ ] Add registry dispatch tests for each implemented tool: valid/invalid schema, unknown tool, domain error, and missing canvas.
+13. [ ] Add regression coverage proving deleting a class removes relationships that reference it and failed operations cannot leak partial state changes.
+14. [ ] Run `pytest backend/tests`, Ruff checks, and GitHub Actions CI; commit only when the relevant tests pass.
+
+### Phase 3 hardening and exit criteria
+
+- [ ] Replace the blanket `except Exception` in `ToolRegistry.dispatch` with deliberate handling for input-validation and expected domain/application failures; keep unexpected programming errors observable.
+- [ ] Resolve the workspace/canvas boundary: `ToolContext` carries both IDs, but the repository stores by `canvas_id` only and has no workspace-ownership check. Define authorization before enabling user-driven tool execution.
+- [ ] Fix or remove `CanvasRepository.get_all_canvases(workspace_id)`, which currently ignores the workspace argument.
+- [ ] Define whether failed tool execution returns stable error codes rather than raw exception messages.
+- [ ] Add call limits, timeouts, allowed-tool policy, and confirmation requirements for destructive actions before exposing tools to an LLM.
+- [ ] Register concrete tools in one bootstrap/composition root so the active tool catalog is explicit and testable.
+
+**Exit criteria:** each exposed tool makes a real domain mutation, validates invariants, saves successful state, rejects invalid requests without corruption, and has meaningful tests.
+
+### Phase 4: Tool-calling harness
+
+- [ ] Extend `LLMClient` to request and parse provider-native tool/function calls.
+- [ ] Define provider-neutral tool-call and tool-result models.
+- [ ] Implement a bounded loop: LLM → tool request → schema validation → authorization → registry dispatch → append tool result → LLM.
+- [ ] Set maximum iterations, per-tool timeout, cancellation behavior, and safe handling for unknown or malformed calls.
+- [ ] Detect repetitive failed calls and simple loops.
+- [ ] Test no-tool response, one call, multiple calls, invalid arguments, domain failure, provider errors, and iteration exhaustion using mocked LLM responses.
+
+**Exit criteria:** natural-language requests can trigger validated canvas operations through bounded application-controlled execution.
+
+### Phase 5: Conversation and memory state
+
+- [ ] Define session creation, retrieval, and persistence boundaries for `ChatSession`.
+- [ ] Preserve tool-call/tool-result linkage in the session model.
+- [ ] Clarify and test `ChatSession.trim_context`: it currently counts non-system messages rather than user-assistant turns, and returns all system messages separately. Preserve intended order.
+- [ ] Add token-budget-based trimming after message-count semantics are tested.
+- [ ] Document retention and privacy policy for conversation/design data.
+
+### Phase 6: Evaluation baseline
+
+- [ ] Create a small versioned benchmark of design requests and expected tool actions.
+- [ ] Measure tool-selection accuracy, argument correctness, execution success, unsafe-action rejection, schema-validity, latency, and usage/cost.
+- [ ] Keep deterministic tests distinct from LLM-as-judge evaluation.
+- [ ] Establish baseline metrics before adding RAG or agent frameworks.
+
+### Phase 7: RAG ingestion foundation
+
+- [ ] Choose a narrow and verifiable initial corpus for software-design guidance.
+- [ ] Implement ingestion with stable source identifiers and source metadata.
+- [ ] Implement chunking with explicit overlap and source-span preservation.
+- [ ] Define an embedding interface and choose an embedding model based on quality, cost, and runtime constraints.
+- [ ] Add PostgreSQL + pgvector schema/migrations, indexes, and metadata storage.
+- [ ] Make ingestion repeatable and handle duplicates, source updates, and deletion.
+- [ ] Test malformed documents and stable citation/source references.
+
+### Phase 8: Retrieval quality
+
+- [ ] Implement configurable vector retrieval and metadata filters.
+- [ ] Build a query set with known relevant source chunks.
+- [ ] Measure Recall@k, MRR/nDCG as appropriate, and retrieval latency.
+- [ ] Analyze failure cases before adding complexity.
+
+### Phase 9: Hybrid retrieval
+
+- [ ] Add BM25 lexical retrieval.
+- [ ] Merge lexical/vector results using a documented fusion strategy such as reciprocal-rank fusion.
+- [ ] Deduplicate by stable chunk/source identity.
+- [ ] Benchmark hybrid against both retrievers individually.
+
+### Phase 10: Reranking
+
+- [ ] Add a reranker behind an interface.
+- [ ] Measure ranking-quality gains, latency, and inference cost.
+- [ ] Keep reranking configurable.
+
+### Phase 11: Grounding and citations
+
+- [ ] Define a citation contract mapping generated claims to retrieved source spans.
+- [ ] Reject unsupported claims or clearly communicate uncertainty.
+- [ ] Prevent fabricated source references.
+- [ ] Test valid, missing, irrelevant, and conflicting evidence.
+
+### Phase 12: RAG evaluation
+
+- [ ] Evaluate retrieval relevance separately from answer correctness and groundedness.
+- [ ] Track citation coverage/precision, faithfulness, relevance, latency, and cost.
+- [ ] Include adversarial and out-of-scope queries.
+- [ ] Add regression thresholds for changes to corpus, chunking, embeddings, prompts, or models.
+
+### Phase 13: Production hardening
+
+- [ ] Make `/healthz` a fast liveness endpoint with no LLM request. Add separate readiness and/or LLM smoke checks if useful.
+- [ ] Configure network timeouts and cancellation handling.
+- [ ] Add structured logs, request IDs, and trace correlation across API/LLM/tools/RAG.
+- [ ] Redact secrets and sensitive user content from logs by default.
+- [ ] Standardize API error responses and status mapping.
+- [ ] Restrict CORS for deployment; avoid wildcard origins with credentials in production.
+- [ ] Add dependency lock/pinning and security checks.
+- [ ] Extend CI to run formatting/lint checks as well as tests.
+- [ ] Test provider throttling, timeouts, persistence errors, and concurrent writes.
+- [ ] Adopt durable, transactional persistence before multi-user production usage.
+
+### Phase 14: Agent behavior
+
+- [ ] Add explicit agent state and stopping criteria only after the harness/evaluation are reliable.
+- [ ] Decide when to plan, execute, ask for clarification, or require confirmation.
+- [ ] Add tool budgets, wall-clock limits, and safe recovery.
+- [ ] Compare agent runs against a deterministic workflow baseline.
+
+### Phase 15: LangGraph
+
+- [ ] Represent the workflow as explicit nodes/transitions with typed state.
+- [ ] Add checkpointing and human approval for high-impact operations.
+- [ ] Test interrupt/resume, retries, and duplicate execution.
+- [ ] Adopt LangGraph only if it clearly improves maintainability over the harness.
+
+### Phase 16: Deployment and cloud
+
+- [ ] Build a reproducible, non-root container.
+- [ ] Externalize secrets/configuration and set resource/time limits.
+- [ ] Configure health checks, graceful shutdown, TLS, authentication/authorization, rate limiting, and production CORS.
+- [ ] Add migrations, backups, recovery instructions, deployment smoke tests, and rollback steps.
+- [ ] Document local development, CI, deployment, and debugging.
+
+### Working agreement
+
+- Implement one task at a time and preserve the agreed learning loop: concept → minimal implementation → integration → deliberate failure testing → design reflection → tests → commit.
+- Tests may be batched after a group of related implementations, but never treat a stub that returns `success=True` as completed behavior.
+- Explain why each responsibility belongs in the tool, domain service, repository, API, or LLM layer.
+- Keep future phases as plans until prerequisites and exit criteria are actually met.
+
+---
+
 ## 4. Phase-by-Phase Implementation Mapping
 
 | Roadmap Phase | Core Classes Implemented | Verification & Milestone Deliverable |
