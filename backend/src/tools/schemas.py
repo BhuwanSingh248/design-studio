@@ -1,60 +1,58 @@
-from enum import Enum
+"""Validated input schemas for canvas tools."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-
-class RelationshipType(str, Enum):
-    inheritance = "INHERITANCE"
-    composition = "COMPOSITION"
-    aggregation = "AGGREGATION"
-    dependency = "DEPENDENCY"
-    association = "ASSOCIATION"
+from src.domain.models.canvas import RelationshipType
 
 
-class CreateClassInput(BaseModel):
+class ToolInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+
+class CreateClassInput(ToolInput):
     name: str = Field(min_length=1)
 
 
-class DeleteClassInput(BaseModel):
+class DeleteClassInput(ToolInput):
     class_id: str = Field(min_length=1)
 
 
-class RenameClassInput(BaseModel):
+class RenameClassInput(ToolInput):
     class_id: str = Field(min_length=1)
     new_name: str = Field(min_length=1)
 
 
-class AddAttributeInput(BaseModel):
+class AddAttributeInput(ToolInput):
     class_id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     type: str = Field(min_length=1)
     default: str | None = None
 
 
-class RemoveAttributeInput(BaseModel):
+class RemoveAttributeInput(ToolInput):
     class_id: str = Field(min_length=1)
     name: str = Field(min_length=1)
 
 
-class AddRelationshipInput(BaseModel):
+class AddRelationshipInput(ToolInput):
     source_id: str = Field(min_length=1)
     target_id: str = Field(min_length=1)
     relationship_type: RelationshipType
 
 
-class RemoveRelationshipInput(BaseModel):
+class RemoveRelationshipInput(ToolInput):
     source_id: str = Field(min_length=1)
     target_id: str = Field(min_length=1)
     relationship_type: RelationshipType
 
 
-class AddMethodInput(BaseModel):
+class AddMethodInput(ToolInput):
     class_id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     return_type: str = Field(min_length=1)
     parameters: list[str] = Field(default_factory=list)
 
 
-class RemoveMethodInput(BaseModel):
+class RemoveMethodInput(ToolInput):
     class_id: str = Field(min_length=1)
     name: str = Field(min_length=1)

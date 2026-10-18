@@ -10,7 +10,9 @@ class CreateClassTool(BaseTool):
     input_schema = CreateClassInput
 
     def __init__(
-        self, canvas_service: CanvasService, canvas_repository: CanvasRepository
+        self,
+        canvas_service: CanvasService,
+        canvas_repository: CanvasRepository,
     ):
         self.canvas_service = canvas_service
         self.canvas_repository = canvas_repository
@@ -18,14 +20,13 @@ class CreateClassTool(BaseTool):
     async def execute(
         self, params: CreateClassInput, context: ToolContext
     ) -> ToolResult:
-        # obtain the CanvasState for context.canvas_id
-        canvas = await self.canvas_repository.get(context.canvas_id)
-
-        # call canvas_service.create_class(...)
+        canvas = await self.canvas_repository.get(
+            context.workspace_id, context.canvas_id
+        )
         created_class = self.canvas_service.create_class(canvas, params.name)
-        await self.canvas_repository.save(context.canvas_id, canvas)
-        
-        # convert returned ClassDefinition into ToolResult
+        await self.canvas_repository.save(
+            context.workspace_id, context.canvas_id, canvas
+        )
         return ToolResult(
             success=True,
             data={

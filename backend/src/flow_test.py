@@ -1,3 +1,7 @@
+"""Small manual smoke test for registered canvas tools."""
+
+import asyncio
+
 from src.domain.models.canvas import CanvasState
 from src.domain.repositories.canvas_repository import CanvasRepository
 from src.domain.services.canvas_service import CanvasService
@@ -7,26 +11,24 @@ from src.tools.registry import ToolRegistry
 
 
 async def main():
-    repo = CanvasRepository()
+    workspace_id = "workspace-1"
+    canvas_id = "canvas-1"
+    repository = CanvasRepository()
     service = CanvasService()
 
-    tool = CreateClassTool(canvas_service=service, canvas_repository=repo)
-
+    await repository.save(workspace_id, canvas_id, CanvasState())
     registry = ToolRegistry()
-    registry.register_tool(tool)
+    registry.register_tool(
+        CreateClassTool(canvas_service=service, canvas_repository=repository)
+    )
 
-    canvas = CanvasState()
-    await repo.save("canvas-1", canvas)
-
-    context = ToolContext(workspace_id="workspace-1", canvas_id="canvas-1")
-
+    context = ToolContext(workspace_id=workspace_id, canvas_id=canvas_id)
     result = await registry.dispatch("create_class", {"name": "Orders"}, context)
-    print("✅ Tool Result:", result)
+    saved_canvas = await repository.get(workspace_id, canvas_id)
 
-    saved_canvas = await repo.get("canvas-1")
-    print("\ncavnas state:", saved_canvas)
+    print("Tool result:", result)
+    print("Canvas state:", saved_canvas)
 
 
-import asyncio
-
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
