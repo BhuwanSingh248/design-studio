@@ -3,8 +3,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.api.v1 import api_v1_router
-from src.core.config import llm_settings
-from src.llm.client import LLMClient
 
 app = FastAPI(
     title="AI Design Studio API",
@@ -26,19 +24,7 @@ app.include_router(api_v1_router)
 
 @app.get("/healthz", tags=["Health"])
 async def health_check():
-    llm_client = LLMClient(settings=llm_settings, cost_tracker=None)
-    llm_response = await llm_client.chat(
-        messages=[
-            {
-                "role": "user",
-                "content": "health check endpoint system and llm up only 10 words but funny",
-            }
-        ]
-    )
-    response = "service is up and running llm is down"
-    if llm_response:
-        response = llm_response.choices[0].message.content
-    return {"status": "healthy", "service": "ai-design-studio", "response": response}
+    return {"status": "healthy", "service": "ai-design-studio"}
 
 
 if __name__ == "__main__":

@@ -9,6 +9,15 @@ from src.main import app
 client = TestClient(app)
 
 
+def test_health_endpoint_is_local_liveness_probe():
+    with patch("src.llm.client.LLMClient") as mock_client:
+        response = client.get("/healthz")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "healthy", "service": "ai-design-studio"}
+    mock_client.assert_not_called()
+
+
 def test_chat_endpoint_success():
     fake_review = DesignReview(
         summary="Clean monolithic design",
